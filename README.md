@@ -1,7 +1,3 @@
-
-# AI-MSR
-AI Minecraft Speedruns Project
-
 ## Project MCSR: Minecraft Speedrun AI
 
 ### Overview
@@ -17,6 +13,7 @@ This project uses:
 
 ## Project Structure
 
+```plaintext
 AI-MSR/
 │
 ├── data/                  # Game data, speedrun logs, and training data.
@@ -45,7 +42,7 @@ AI-MSR/
 ├── .gitignore             # Files and directories to be ignored by Git.
 ├── README.md              # Overview of the project and instructions.
 ├── requirements.txt       # Python dependencies.
-
+```
 
 ## Setup
 
@@ -60,25 +57,35 @@ AI-MSR/
 
 1. **Clone the repository**:
 
+   ```bash
    git clone https://github.com/your-username/Project_MCSR.git
-   cd AI-MSR
+   cd Project_MCSR
+   ```
 
 2. **Create a virtual environment and activate it**:
 
+   ```bash
    python3 -m venv env
    source env/bin/activate  # On Windows, use `env\Scripts\activate`
+   ```
 
 3. **Install the required dependencies**:
 
+   ```bash
    pip install -r requirements.txt
+   ```
 
 4. **Install the Minecraft Gym environment (using MineRL)**:
 
+   ```bash
    pip install minerl
+   ```
 
 5. **Set up the Minecraft environment**:
 
+   ```bash
    python environment/environment.py
+   ```
 
 ## Usage
 
@@ -86,13 +93,17 @@ AI-MSR/
 
 To test the environment setup with a random agent, run:
 
+```bash
 python environment/environment.py
+```
 
 ### Training the Agent
 
 To start training the agent, run:
 
+```bash
 python training/train.py
+```
 
 This will train the agent using reinforcement learning and save model checkpoints in the `models/checkpoints` directory.
 
@@ -100,7 +111,9 @@ This will train the agent using reinforcement learning and save model checkpoint
 
 After training, evaluate the agent's performance using:
 
+```bash
 python training/evaluation.py
+```
 
 This will provide metrics on how well the agent is performing in the speedrun tasks.
 
@@ -108,22 +121,30 @@ This will provide metrics on how well the agent is performing in the speedrun ta
 
 You can visualize the training progress and rewards using the visualization script:
 
+```bash
 python scripts/visualization.py
+```
 
 ## Contributing
 
 1. Fork the repository.
 2. Create your feature branch:
 
+   ```bash
    git checkout -b feature/YourFeature
+   ```
 
 3. Commit your changes:
 
+   ```bash
    git commit -m 'Add some feature'
+   ```
 
 4. Push to the branch:
 
+   ```bash
    git push origin feature/YourFeature
+   ```
 
 5. Open a pull request.
 
@@ -136,3 +157,4 @@ python scripts/visualization.py
 ## Acknowledgments
 
 Special thanks to all the contributors of Project MCSR for their dedication and effort in making this project a success.
+```
