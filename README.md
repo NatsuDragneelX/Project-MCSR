@@ -1,160 +1,45 @@
-## Project MCSR: Minecraft Speedrun AI
+```markdown
+# MinecraftSpeedrunAI
 
-### Overview
+An AI project that uses reinforcement learning to speedrun Minecraft, aiming to outperform human players.
 
-Project MCSR is a collaborative effort by Group 6, consisting of John Slade, Dwight Fowler, Muhanad Yennes, Kolton Truitt, Austin McBurney, Nicole Parra, Gustavo Coloma, Shivam Patel, Gabriel Kleinschmidt, and Josiah Doucet.
-
-The goal of this project is to create an AI agent that can complete the game "Minecraft" as quickly as possible, mimicking and exceeding human speedrunning techniques. By leveraging reinforcement learning and expert human strategies, we aim to set a baseline for the fastest possible completion of the game.
-
-This project uses:
-- **Python** and **PyTorch** for building and training the AI models.
-- **Minecraft OpenAI Gym** for simulating the game environment.
-- Data from **expert speedruns**, **ChunkBase** for world navigation data, and **MinecraftWiki** for item information.
+## Project Overview
+This project develops an AI agent capable of completing a Minecraft speedrun as efficiently as possible by navigating, gathering resources, crafting items, and battling mobs.
 
 ## Project Structure
+- `docs/`: Project documentation.
+- `data/`: Data files from external sources like ChunkBase and Minecraft Wiki.
+- `src/`: Source code including modules for navigation, combat, crafting, and reinforcement learning.
+- `models/`: Contains trained models, checkpoints, and logs.
+- `tests/`: Test cases for unit, integration, and full-sequence tests.
+- `scripts/`: Helper scripts for data processing, benchmarking, and environment setup.
 
-```plaintext
-AI-MSR/
-│
-├── data/                  # Game data, speedrun logs, and training data.
-│   ├── expert_runs/       # Expert speedrun data (e.g., strategies, timings).
-│   ├── chunkbase_data/    # Data from ChunkBase.
-│   ├── minecraft_wiki/    # Data from MinecraftWiki.
-│
-├── environment/           # Scripts related to the game environment.
-│   ├── minecraft_gym/     # Setup for Minecraft OpenAI Gym environment.
-│   ├── environment.py     # Script to initialize and interact with the environment.
-│
-├── models/                # AI models.
-│   ├── agent.py           # Defines the agent's architecture and actions.
-│   ├── model_utils.py     # Helper functions for the model.
-│   ├── checkpoints/       # Model checkpoints during training.
-│
-├── training/              # Training scripts and logic.
-│   ├── train.py           # Script to train the agent.
-│   ├── reward_functions.py # Custom reward functions for different milestones.
-│   ├── evaluation.py      # Script to evaluate the agent's performance.
-│
-├── scripts/               # Utility scripts for various tasks.
-│   ├── data_preprocessing.py # Script to process speedrun data.
-│   ├── visualization.py   # Visualize training progress, rewards, etc.
-│
-├── .gitignore             # Files and directories to be ignored by Git.
-├── README.md              # Overview of the project and instructions.
-├── requirements.txt       # Python dependencies.
-```
-
-## Setup
-
-### Prerequisites
-
-- Python 3.8+
-- Virtual environment (recommended)
-- Git (for version control)
-- Java (required for some Minecraft libraries)
-
+## Getting Started
 ### Installation
-
-1. **Clone the repository**:
-
-   ```bash
-   git clone https://github.com/your-username/Project_MCSR.git
-   cd Project_MCSR
+1. Clone the repository.
+2. Install dependencies:
    ```
-
-2. **Create a virtual environment and activate it**:
-
-   ```bash
-   python3 -m venv env
-   source env/bin/activate  # On Windows, use `env\Scripts\activate`
-   ```
-
-3. **Install the required dependencies**:
-
-   ```bash
    pip install -r requirements.txt
    ```
-
-4. **Install the Minecraft Gym environment (using MineRL)**:
-
-   ```bash
-   pip install minerl
+3. Set up the environment:
+   ```
+   python scripts/setup_env.py
    ```
 
-5. **Set up the Minecraft environment**:
-
-   ```bash
-   python environment/environment.py
-   ```
-
-## Usage
-
-### Running the Environment
-
-To test the environment setup with a random agent, run:
-
+### Running the AI Agent
+To start a speedrun, use:
 ```bash
-python environment/environment.py
+python src/main/run.py
 ```
 
-### Training the Agent
-
-To start training the agent, run:
-
+### Training the Model
+To train the agent, use:
 ```bash
-python training/train.py
-```
-
-This will train the agent using reinforcement learning and save model checkpoints in the `models/checkpoints` directory.
-
-### Evaluating the Agent
-
-After training, evaluate the agent's performance using:
-
-```bash
-python training/evaluation.py
-```
-
-This will provide metrics on how well the agent is performing in the speedrun tasks.
-
-### Visualizing Progress
-
-You can visualize the training progress and rewards using the visualization script:
-
-```bash
-python scripts/visualization.py
+python src/main/train.py
 ```
 
 ## Contributing
-
-1. Fork the repository.
-2. Create your feature branch:
-
-   ```bash
-   git checkout -b feature/YourFeature
-   ```
-
-3. Commit your changes:
-
-   ```bash
-   git commit -m 'Add some feature'
-   ```
-
-4. Push to the branch:
-
-   ```bash
-   git push origin feature/YourFeature
-   ```
-
-5. Open a pull request.
-
-## Resources
-
-- [ChunkBase](https://chunkbase.com)
-- [Minecraft Wiki](https://minecraft.wiki)
-- [MineRL Documentation](https://minerl.readthedocs.io/en/latest/)
-
-## Acknowledgments
-
-Special thanks to all the contributors of Project MCSR for their dedication and effort in making this project a success.
+Please read `CONTRIBUTING.md` for guidelines on code style, branch management, and testing.
 ```
+
+This structure allows team members to work independently on their modules, promotes easy testing and integration, and organizes resources efficiently for both development and future maintenance.
