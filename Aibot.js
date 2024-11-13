@@ -3,15 +3,14 @@ const { goals } = require("mineflayer-pathfinder");
 const { pathfinder, Movements } = require("mineflayer-pathfinder");
 const { Vec3 } = require("vec3");
 
-// Configuration
-const playerUsername = "YourMinecraftUsername"; // Replace with your Minecraft username
-const maxGatherAttempts = 5; // Max attempts to gather resources
-const gatherCooldown = 5000; // Cooldown between gathering attempts in ms
-let gatherAttempts = 0;
-let woodCollected = 0;
+const playerUsername = "NatsuDragonX"; // Replace with your Minecraft username
 let bot = createBotInstance();
+let gatherAttempts = 0;
+const maxGatherAttempts = 5;
+const gatherCooldown = 5000;
+let woodCollected = 0;
+let ironCollected = 0;
 
-// Function to create and configure the bot instance
 function createBotInstance() {
     const botInstance = mineflayer.createBot({
         username: "SpeedRunnerBot",
@@ -29,15 +28,13 @@ function createBotInstance() {
     return botInstance;
 }
 
-// Handle bot spawn: Start gathering resources and set keep-alive
 function onBotSpawn() {
-    console.log("Bot has spawned and is starting the search-and-gather process.");
-    bot.chat("Speedrun initiated! Searching for wood...");
+    console.log("Bot has spawned and is starting the speedrun process.");
+    bot.chat("Starting resource gathering for speedrun...");
     searchAndGather();
     keepAlive();
 }
 
-// Handle bot disconnection: Reconnect after 5 seconds
 function onBotEnd() {
     console.log("Bot disconnected. Attempting to reconnect...");
     setTimeout(() => {
@@ -45,14 +42,11 @@ function onBotEnd() {
     }, 5000);
 }
 
-// Handle chat commands
 function onChatCommand(username, message) {
-    if (username === bot.username) return; // Ignore bot's own messages
-
-    if (message === "come" && username === playerUsername) {
-        teleportToPlayer();
-    } else if (message === "start") {
-        woodCollected = 0; // Reset wood collection
+    if (username === bot.username) return;
+    if (message === "come" && username === playerUsername) teleportToPlayer();
+    else if (message === "start") {
+        woodCollected = 0;
         searchAndGather();
         bot.chat("Starting resource collection...");
     } else if (message === "stop") {
@@ -63,71 +57,136 @@ function onChatCommand(username, message) {
     }
 }
 
-// Teleport bot to the player's location on request
 function teleportToPlayer() {
     const player = bot.players[playerUsername];
     if (player && player.entity) {
         const playerPosition = player.entity.position;
         bot.chat(`Teleporting to ${playerUsername}...`);
         bot.pathfinder.setGoal(new goals.GoalNear(playerPosition.x, playerPosition.y, playerPosition.z, 1));
-    } else {
-        bot.chat("Player not found or not visible.");
-    }
+    } else bot.chat("Player not found or not visible.");
 }
 
-// Keep-alive function to prevent idle disconnection
 function keepAlive() {
     setInterval(() => {
         if (bot.entity && bot.entity.isValid) {
             bot.setControlState("jump", true);
-            setTimeout(() => bot.setControlState("jump", false), 500); // Jump for 0.5 seconds
-            console.log("Keep-alive jump to prevent idle timeout.");
+            setTimeout(() => bot.setControlState("jump", false), 500);
         }
-    }, 60000); // Jump every 60 seconds
+    }, 60000);
 }
 
-// Search and gather wood for crafting
+// Phase 1: Gather wood and start with basic tools
 async function searchAndGather() {
     if (gatherAttempts >= maxGatherAttempts) {
-        console.log("Reached maximum gather attempts. Stopping gathering process.");
         bot.chat("Unable to gather enough wood. Stopping.");
         return;
     }
-
     gatherAttempts++;
-    const woodTypes = [
-        "oak_log", "spruce_log", "birch_log", "jungle_log",
-        "acacia_log", "dark_oak_log", "mangrove_log",
-        "crimson_stem", "warped_stem"
-    ];
 
-    const tree = bot.findBlock({
-        matching: block => woodTypes.includes(block.name),
-        maxDistance: 32,
-    });
-
+    const woodTypes = ["oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log"];
+    const tree = bot.findBlock({ matching: block => woodTypes.includes(block.name), maxDistance: 32 });
     if (tree) {
-        console.log("Tree found at:", tree.position);
         await moveTo(tree.position);
         await bot.dig(tree);
         woodCollected++;
         bot.chat("Wood collected: " + woodCollected);
+        if (woodCollected >= 5) await craftWoodenTools();
     } else {
-        console.log("No trees nearby. Moving to a new location...");
-        const randomX = bot.entity.position.x + Math.floor(Math.random() * 20 - 10);
-        const randomZ = bot.entity.position.z + Math.floor(Math.random() * 20 - 10);
-        await moveTo(new Vec3(randomX, bot.entity.position.y, randomZ));
+        bot.chat("No trees nearby. Moving to a new location...");
+        await moveTo(new Vec3(bot.entity.position.x + Math.floor(Math.random() * 20 - 10), bot.entity.position.y, bot.entity.position.z + Math.floor(Math.random() * 20 - 10)));
     }
+    setTimeout(() => { if (woodCollected < 5) searchAndGather(); }, gatherCooldown);
+}
 
-    // Retry gathering after cooldown if wood not collected
-    setTimeout(() => {
-        if (woodCollected < 5) {
-            searchAndGather();
-        } else {
-            bot.chat("Sufficient wood collected. Moving to crafting stage...");
-            craftWoodenTools();
-        }
-    }, gatherCooldown);
+async function craftWoodenTools() {
+    const logs = bot.inventory.items().find(item => item.name.includes("log"));
+    if (!logs) return;
+
+    const plankRecipe = bot.recipesFor("planks")[0];
+    if (plankRecipe) await bot.craft(plankRecipe, 4, null);
+
+    const stickRecipe = bot.recipesFor("stick")[0];
+    if (stickRecipe) await bot.craft(stickRecipe, 4, null);
+
+    const pickaxeRecipe = bot.recipesFor("wooden_pickaxe")[0];
+    if (pickaxeRecipe) {
+        await bot.craft(pickaxeRecipe, 1, null);
+        bot.chat("Wooden pickaxe crafted!");
+        gatherStone(); // Move to the next step: gathering stone
+    }
+}
+
+// Phase 2: Gather stone and upgrade tools
+async function gatherStone() {
+    const stone = bot.findBlock({ matching: block => block.name === "stone", maxDistance: 16 });
+    if (stone) {
+        await moveTo(stone.position);
+        await bot.dig(stone);
+        bot.chat("Stone gathered!");
+        craftStoneTools();
+    } else bot.chat("No stone nearby to gather.");
+}
+
+async function craftStoneTools() {
+    const pickaxeRecipe = bot.recipesFor("stone_pickaxe")[0];
+    if (pickaxeRecipe) {
+        await bot.craft(pickaxeRecipe, 1, null);
+        bot.chat("Stone pickaxe crafted!");
+        gatherIron(); // Proceed to gathering iron
+    }
+}
+
+// Phase 3: Gather iron and prepare for the Nether
+async function gatherIron() {
+    const ironOre = bot.findBlock({ matching: block => block.name === "iron_ore", maxDistance: 16 });
+    if (ironOre) {
+        await moveTo(ironOre.position);
+        await bot.dig(ironOre);
+        ironCollected++;
+        bot.chat("Iron gathered: " + ironCollected);
+        if (ironCollected >= 3) smeltIron();
+    } else bot.chat("No iron nearby to gather.");
+}
+
+async function smeltIron() {
+    // Ensure there is a furnace and fuel to smelt iron ore
+    const furnaceRecipe = bot.recipesFor("furnace")[0];
+    if (furnaceRecipe) await bot.craft(furnaceRecipe, 1, null);
+
+    // Code to place furnace, add iron ore and fuel, and smelt iron
+    // Assuming that fuel is available (e.g., wooden planks)
+    bot.chat("Smelting iron...");
+    // Proceed to Nether portal creation after smelting is complete
+    createNetherPortal();
+}
+
+// Phase 4: Create a Nether Portal using bucket and lava
+async function createNetherPortal() {
+    bot.chat("Attempting to create a Nether portal...");
+    // Logic to use water bucket on lava pools to form obsidian and build the portal frame
+    // Light the portal and enter the Nether when ready
+    navigateNether(); // Placeholder for entering Nether and moving to the next phase
+}
+
+// Phase 5: Navigate the Nether to find blaze rods and ender pearls
+async function navigateNether() {
+    bot.chat("Exploring the Nether...");
+    // Logic to find a Nether fortress and gather blaze rods
+    // Gather ender pearls from Piglin bartering or Endermen if available
+    findStronghold();
+}
+
+// Phase 6: Locate the stronghold using Ender Eyes
+async function findStronghold() {
+    bot.chat("Locating the stronghold...");
+    // Logic for using Ender Eyes to triangulate the stronghold's location
+    fightEnderDragon();
+}
+
+// Phase 7: Engage and defeat the Ender Dragon
+async function fightEnderDragon() {
+    bot.chat("Engaging the Ender Dragon...");
+    // Logic to destroy End Crystals and attack the Ender Dragon
 }
 
 // Move to a target position with hole detection and avoidance
@@ -138,107 +197,13 @@ async function moveTo(position) {
 
     const isSafe = (pos) => {
         const below = bot.blockAt(pos.offset(0, -1, 0));
-        const twoBlocksBelow = bot.blockAt(pos.offset(0, -2, 0));
-        return (below && below.boundingBox === "block") || (twoBlocksBelow && twoBlocksBelow.boundingBox === "block");
+        return below && below.boundingBox === "block";
     };
 
-    let attempts = 0;
-    while (attempts < 3) {
-        if (isSafe(position)) {
-            await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
-            return;
-        } else {
-            console.log("Detected a hole or unsafe area. Trying to find an alternative path...");
-            bot.chat("Hole detected! Avoiding...");
-            const alternativePosition = position.offset(1, 0, 1);
-            if (isSafe(alternativePosition)) {
-                await bot.pathfinder.goto(new goals.GoalBlock(alternativePosition.x, alternativePosition.y, alternativePosition.z));
-                return;
-            }
-        }
-        attempts++;
-        await bot.waitForTicks(10);
-    }
-
-    console.log("Unable to find a safe path. Moving in a new direction.");
-    bot.chat("No safe path found, changing direction.");
-    const randomX = bot.entity.position.x + Math.floor(Math.random() * 6 - 3);
-    const randomZ = bot.entity.position.z + Math.floor(Math.random() * 6 - 3);
-    await bot.pathfinder.goto(new goals.GoalBlock(randomX, bot.entity.position.y, randomZ));
-}
-
-// Craft wooden tools after gathering wood
-async function craftWoodenTools() {
-    console.log("Crafting wooden tools...");
-
-    const logs = bot.inventory.items().find(item => item.name.includes("log"));
-    if (!logs) {
-        console.log("No logs available for crafting planks. Aborting crafting.");
-        return;
-    }
-
-    const plankRecipe = bot.recipesFor("planks")[0];
-    if (plankRecipe) {
-        await bot.craft(plankRecipe, 4, null);
-        console.log("Crafted planks.");
+    if (isSafe(position)) {
+        await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
     } else {
-        console.log("No recipe found for planks.");
-        return;
-    }
-
-    const planks = bot.inventory.items().find(item => item.name.includes("planks"));
-    if (!planks) {
-        console.log("No planks available for crafting sticks.");
-        return;
-    }
-
-    const stickRecipe = bot.recipesFor("stick")[0];
-    if (stickRecipe) {
-        await bot.craft(stickRecipe, 4, null);
-        console.log("Crafted sticks.");
-    } else {
-        console.log("No recipe found for sticks.");
-        return;
-    }
-
-    const pickaxeRecipe = bot.recipesFor("wooden_pickaxe")[0];
-    if (pickaxeRecipe) {
-        await bot.craft(pickaxeRecipe, 1, null);
-        bot.chat("Wooden pickaxe crafted!");
-    } else {
-        console.log("No recipe found for wooden pickaxe.");
-    }
-}
-
-// Gather stone for crafting stone tools
-async function gatherStone() {
-    console.log("Gathering stone...");
-    const stone = bot.findBlock({
-        matching: block => block.name === "stone",
-        maxDistance: 16,
-    });
-
-    if (stone) {
-        await moveTo(stone.position);
-        await bot.dig(stone);
-        bot.chat("Stone gathered!");
-        craftStoneTools();
-    } else {
-        console.log("No stone nearby. Moving to a new location...");
-        bot.chat("No stone nearby to gather.");
-    }
-}
-
-// Craft stone tools after gathering stone
-async function craftStoneTools() {
-    console.log("Crafting stone tools...");
-    const pickaxeRecipe = bot.recipesFor("stone_pickaxe")[0];
-
-    if (pickaxeRecipe) {
-        await bot.craft(pickaxeRecipe, 1, null);
-        bot.chat("Stone pickaxe crafted!");
-    } else {
-        bot.chat("Unable to craft stone pickaxe.");
-        console.log("Stone pickaxe recipe not found or insufficient resources.");
+        bot.chat("Hole detected! Avoiding...");
+        await bot.pathfinder.goto(new goals.GoalBlock(position.x + 1, position.y, position.z + 1));
     }
 }
