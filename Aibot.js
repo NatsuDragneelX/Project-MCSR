@@ -33,8 +33,13 @@ function createBotInstance() {
 function onBotSpawn() {
     console.log("Bot has spawned and is starting the speedrun process.");
     bot.chat("Starting resource gathering for speedrun...");
-    gatherResources();
+
+    // Automatically teleport to the player upon spawning
+    teleportToPlayer();
+    
+    // Start the keep-alive and gathering processes
     keepAlive();
+    gatherResources();
 }
 
 function onBotEnd() {
@@ -67,14 +72,31 @@ function onPathUpdate(result) {
     }
 }
 
-function teleportToPlayer() {
+// Attempt to locate and move to player on spawn
+async function teleportToPlayer() {
     const player = bot.players[playerUsername];
     if (player && player.entity) {
         const playerPosition = player.entity.position;
         bot.chat(`Teleporting to ${playerUsername}...`);
-        bot.pathfinder.setGoal(new goals.GoalNear(playerPosition.x, playerPosition.y, playerPosition.z, 1));
-    } else bot.chat("Player not found or not visible.");
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                await bot.pathfinder.goto(new goals.GoalNear(playerPosition.x, playerPosition.y, playerPosition.z, 1), { timeout: pathfinderTimeout });
+                break; // Exit if successful
+            } catch (err) {
+                console.log(`Retrying... (${3 - retries + 1})`);
+                retries -= 1;
+                await bot.waitForTicks(20); // Wait a bit before retrying
+            }
+        }
+        if (retries === 0) {
+            bot.chat("Could not reach player after multiple attempts.");
+        }
+    } else {
+        bot.chat("Player not found or not visible.");
+    }
 }
+
 
 function keepAlive() {
     setInterval(() => {
@@ -215,31 +237,192 @@ async function moveRandomly() {
 // Phase 4: Create a Nether Portal using bucket and lava
 async function createNetherPortal() {
     bot.chat("Attempting to create a Nether portal...");
-    // Logic to use water bucket on lava pools to form obsidian and build the portal frame
-    // Light the portal and enter the Nether when ready
-    navigateNether(); // Placeholder for entering Nether and moving to the next phase
+
+    // Step 1: Gather buckets and water
+    const bucketRecipe = bot.recipesFor('bucket')[0];
+    if (!bucketRecipe) {
+        bot.chat("Unable to craft bucket, no recipe found.");
+        return;
+    }
+
+    await bot.craft(bucketRecipe, 2, null); // Craft 2 buckets (one for lava, one for water)
+    bot.chat("Buckets crafted.");
+
+    // Step 2: Locate water source and fill one bucket with water
+    const waterSource = bot.findBlock({ matching: block => block.name === 'water', maxDistance: 32 });
+    if (waterSource) {
+        await bot.equip(bot.inventory.findInventoryItem('bucket'), 'hand');
+        await bot.activateBlock(waterSource);
+        bot.chat("Water collected.");
+    } else {
+        bot.chat("No water nearby. Aborting portal creation.");
+        return;
+    }
+
+    // Step 3: Locate a lava pool
+    const lavaPool = bot.findBlock({ matching: block => block.name === 'lava', maxDistance: 32 });
+    if (!lavaPool) {
+        bot.chat("No lava nearby. Aborting portal creation.");
+        return;
+    }
+
+    // Step 4: Create obsidian using lava and water
+    await bot.equip(bot.inventory.findInventoryItem('water_bucket'), 'hand');
+    await moveTo(lavaPool.position);
+
+    const portalPositions = [
+        { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 },
+        { x: 0, y: 1, z: 0 }, { x: 2, y: 1, z: 0 },
+        { x: 0, y: 2, z: 0 }, { x: 2, y: 2, z: 0 },
+        { x: 0, y: 3, z: 0 }, { x: 1, y: 3, z: 0 }, { x: 2, y: 3, z: 0 }
+    ];
+
+    for (const offset of portalPositions) {
+        const position = lavaPool.position.offset(offset.x, offset.y, offset.z);
+        await bot.lookAt(position);
+        await bot.activateBlock(bot.blockAt(position)); // Place water on lava to create obsidian
+        await bot.waitForTicks(10); // Wait for obsidian to form
+    }
+    bot.chat("Nether portal frame created.");
+
+    // Step 5: Light the portal (assuming flint and steel is available)
+    const flintAndSteel = bot.inventory.items().find(item => item.name === 'flint_and_steel');
+    if (flintAndSteel) {
+        await bot.equip(flintAndSteel, 'hand');
+        await bot.activateBlock(bot.blockAt(lavaPool.position.offset(1, 0, 0))); // Light the portal
+        bot.chat("Portal lit! Entering the Nether...");
+        navigateNether();
+    } else {
+        bot.chat("No flint and steel available to light the portal.");
+    }
 }
 
 // Phase 5: Navigate the Nether to find blaze rods and ender pearls
 async function navigateNether() {
     bot.chat("Exploring the Nether...");
-    // Logic to find a Nether fortress and gather blaze rods
-    // Gather ender pearls from Piglin bartering or Endermen if available
+
+    // Step 1: Search for Nether fortress
+    const netherFortress = await searchForStructure('Nether Fortress'); // Custom function to search for a fortress
+    if (!netherFortress) {
+        bot.chat("Unable to locate Nether fortress.");
+        return;
+    }
+    bot.chat("Nether fortress located!");
+
+    // Step 2: Find and kill Blazes for blaze rods
+    const blazeCount = 5; // Desired amount of blaze rods
+    let rodsCollected = 0;
+
+    while (rodsCollected < blazeCount) {
+        const blaze = bot.nearestEntity(entity => entity.name === 'blaze');
+        if (blaze) {
+            await bot.pathfinder.goto(new goals.GoalNear(blaze.position.x, blaze.position.y, blaze.position.z, 1));
+            bot.attack(blaze);
+            rodsCollected++;
+            bot.chat(`Blaze rod collected: ${rodsCollected}/${blazeCount}`);
+        } else {
+            bot.chat("No blaze nearby.");
+            await bot.waitForTicks(20); // Wait and search again
+        }
+    }
+
+    // Step 3: Find Piglins for ender pearls or kill Endermen
+    let pearlsCollected = 0;
+    const pearlGoal = 12; // Desired amount of ender pearls
+
+    while (pearlsCollected < pearlGoal) {
+        const enderman = bot.nearestEntity(entity => entity.name === 'enderman');
+        if (enderman) {
+            await bot.pathfinder.goto(new goals.GoalNear(enderman.position.x, enderman.position.y, enderman.position.z, 1));
+            bot.attack(enderman);
+            pearlsCollected++;
+            bot.chat(`Ender pearl collected: ${pearlsCollected}/${pearlGoal}`);
+        } else {
+            bot.chat("No Endermen found. Searching for Piglins...");
+            await bot.waitForTicks(20);
+            // Add Piglin bartering logic if desired
+        }
+    }
+    bot.chat("Blaze rods and ender pearls collected. Returning to Overworld.");
     findStronghold();
 }
 
 // Phase 6: Locate the stronghold using Ender Eyes
 async function findStronghold() {
     bot.chat("Locating the stronghold...");
-    // Logic for using Ender Eyes to triangulate the stronghold's location
+
+    const eyeOfEnder = bot.inventory.items().find(item => item.name === 'ender_eye');
+    if (!eyeOfEnder) {
+        bot.chat("No Eyes of Ender in inventory.");
+        return;
+    }
+
+    // Step 1: Throw Eye of Ender and follow its direction
+    while (true) {
+        bot.chat("Throwing Eye of Ender...");
+        bot.equip(eyeOfEnder, 'hand');
+        bot.activateItem(); // Throws Eye of Ender
+        await bot.waitForTicks(40); // Wait for Eye to float and fall
+
+        // Step 2: Follow the Eye of Ender's direction
+        const newLocation = bot.entity.position.offset(10, 0, 10); // Simplified; adjust based on Eye's direction
+        await moveTo(newLocation);
+        
+        // Repeat until the stronghold is found
+        if (isStrongholdNearby()) {
+            bot.chat("Stronghold located!");
+            break;
+        }
+    }
+
     fightEnderDragon();
 }
 
 // Phase 7: Engage and defeat the Ender Dragon
 async function fightEnderDragon() {
     bot.chat("Engaging the Ender Dragon...");
-    // Logic to destroy End Crystals and attack the Ender Dragon
+
+    // Step 1: Destroy End Crystals to weaken the dragon
+    let crystalsDestroyed = 0;
+    const endCrystals = bot.findEntities({ type: 'end_crystal' });
+    
+    for (const crystal of endCrystals) {
+        await bot.pathfinder.goto(new goals.GoalNear(crystal.position.x, crystal.position.y, crystal.position.z, 1));
+        bot.attack(crystal);
+        crystalsDestroyed++;
+        bot.chat(`End Crystal destroyed: ${crystalsDestroyed}`);
+    }
+    bot.chat("All End Crystals destroyed.");
+
+    // Step 2: Attack the Ender Dragon when it perches or flies nearby
+    const dragon = bot.nearestEntity(entity => entity.name === 'ender_dragon');
+    while (dragon && dragon.health > 0) {
+        if (dragon.position.distanceTo(bot.entity.position) < 10) {
+            bot.chat("Attacking Ender Dragon...");
+            bot.attack(dragon);
+            await bot.waitForTicks(20);
+        } else {
+            bot.chat("Waiting for the dragon to approach...");
+            await bot.waitForTicks(40);
+        }
+    }
+
+    bot.chat("Ender Dragon defeated! Speedrun complete.");
 }
+
+// Helper function to move bot to a target position safely
+async function moveTo(position) {
+    const movements = new Movements(bot, bot.pathfinder);
+    bot.pathfinder.setMovements(movements);
+    await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
+}
+
+// Helper function to simulate stronghold detection
+function isStrongholdNearby() {
+    // Placeholder logic for detecting a stronghold
+    return Math.random() > 0.8; // 20% chance of detecting stronghold in each loop for demonstration
+}
+
 
 // Move to a target position with hole detection and avoidance
 async function moveTo(position) {

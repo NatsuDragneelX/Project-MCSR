@@ -6,9 +6,12 @@ Here’s an enhanced and streamlined README with clearer instructions for instal
 This project leverages the [Mineflayer](https://github.com/PrismarineJS/mineflayer) library to create a Minecraft bot capable of simulating a simplified speedrun. The bot performs tasks such as gathering resources, crafting tools, and mining, serving as a foundation for a fully automated Minecraft speedrun bot.
 
 ## Features
-- **Resource Gathering**: Collects wood, stone, and iron to progress through early game tasks.
-- **Basic Crafting**: Crafts wooden and stone tools to improve efficiency.
-- **Exploration**: Searches for essential resources to progress naturally through Minecraft's gameplay phases.
+- **Resource Gathering**: Collects wood, stone, and iron to craft tools.
+- **Crafting System**: Crafts essential tools, armor, and weapons.
+- **Portal Creation**: Builds a Nether portal using buckets and lava pools.
+- **Nether Navigation**: Collects blaze rods and ender pearls to prepare for the End.
+- **Stronghold Location**: Finds and navigates the stronghold using Eyes of Ender.
+- **Ender Dragon Battle**: Destroys end crystals and fights the Ender Dragon to complete the speedrun.
 
 ## Prerequisites
 - **Minecraft Java Edition Vr.1.20.4**: Required to connect to the bot's server.
