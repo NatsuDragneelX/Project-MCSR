@@ -43,10 +43,27 @@ function onBotSpawn() {
 }
 
 function onBotEnd() {
-    console.log("Bot disconnected. Attempting to reconnect...");
+    logAction("Bot disconnected. Attempting to reconnect...");
     setTimeout(() => {
         bot = createBotInstance();
     }, 5000);
+}
+
+// Catch unexpected disconnections or pathfinding errors and handle them gracefully
+bot.on("error", (err) => {
+    logAction(`Error encountered: ${err.message}`);
+    moveRandomly();
+});
+
+function retryPath() {
+    // Move the bot to a random nearby position as a fallback
+    const randomNearbyPosition = bot.entity.position.offset(
+        Math.floor(Math.random() * 10 - 5),  // Small random X offset
+        0,
+        Math.floor(Math.random() * 10 - 5)   // Small random Z offset
+    );
+    
+    bot.pathfinder.setGoal(new goals.GoalBlock(randomNearbyPosition.x, randomNearbyPosition.y, randomNearbyPosition.z));
 }
 
 function onChatCommand(username, message) {
@@ -115,6 +132,7 @@ async function gatherResources() {
 }
 
 async function gatherWood() {
+    logAction("Starting wood gathering...");
     const woodTypes = ["oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log"];
     while (woodCollected < 5) {
         const tree = bot.findBlock({ matching: block => woodTypes.includes(block.name), maxDistance: 32 });
@@ -122,13 +140,14 @@ async function gatherWood() {
             await moveTo(tree.position);
             await bot.dig(tree);
             woodCollected++;
-            bot.chat(`Wood collected: ${woodCollected}`);
+            logAction(`Wood collected: ${woodCollected}`);
         } else {
-            bot.chat("No trees nearby. Moving to a new location...");
+            logAction("No trees nearby. Moving to a new location...");
             await moveRandomly();
         }
     }
 }
+
 
 async function gatherStone() {
     while (stoneCollected < 10) {
@@ -231,6 +250,85 @@ async function moveRandomly() {
     const randomX = bot.entity.position.x + Math.floor(Math.random() * 20 - 10);
     const randomZ = bot.entity.position.z + Math.floor(Math.random() * 20 - 10);
     await moveTo(new Vec3(randomX, bot.entity.position.y, randomZ));
+}
+
+// Check for hostile mobs nearby and adjust behavior
+function checkSurroundings() {
+    const hostileMobs = bot.nearestEntity(entity => entity.mobType === 'Zombie' || entity.mobType === 'Skeleton');
+    
+    if (hostileMobs && bot.entity.position.distanceTo(hostileMobs.position) < 10) {
+        bot.chat("Hostile mob detected nearby. Prioritizing defense.");
+        if (bot.inventory.items().find(item => item.name === 'shield')) {
+            bot.equip(bot.inventory.findInventoryItem('shield'), 'off-hand'); // Equip shield if available
+        }
+        evadeOrDefend(hostileMobs);
+    } else if (bot.time.timeOfDay > 13000) { // Minecraft night begins at 13000
+        bot.chat("Night is approaching, finding shelter.");
+        seekShelter();
+    }
+}
+
+function seekShelter() {
+    // Find the nearest high ground or safe location to avoid mobs at night
+    const safeSpot = bot.findBlock({
+        matching: block => block.name === 'stone' || block.name === 'dirt',
+        maxDistance: 20,
+    });
+    if (safeSpot) {
+        moveTo(safeSpot.position);
+    } else {
+        moveRandomly();
+    }
+}
+
+// Enhanced evade or defend logic
+function evadeOrDefend(entity) {
+    // Evade or attack based on distance and available equipment
+    if (entity && bot.entity.position.distanceTo(entity.position) < 5) {
+        bot.chat("Engaging hostile mob.");
+        bot.attack(entity);
+    } else {
+        bot.chat("Moving to a safe distance.");
+        moveRandomly();
+    }
+}
+
+async function safeMoveTo(position) {
+    const movements = new Movements(bot, bot.pathfinder);
+    movements.allowSprinting = true;
+    movements.canDig = true; // Allow the bot to dig if needed
+    bot.pathfinder.setMovements(movements);
+
+    try {
+        await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
+    } catch (error) {
+        console.log("Pathfinding error: Retrying with alternative position...");
+        await moveRandomly(); // Retry with a slight adjustment to avoid obstacles
+    }
+}
+
+function manageInventory() {
+    const essentialItems = ['wood', 'stone', 'iron', 'planks', 'stick', 'iron_ingot', 'food'];
+    bot.inventory.items().forEach(item => {
+        if (!essentialItems.includes(item.name)) {
+            bot.tossStack(item); // Drop unnecessary items
+        }
+    });
+}
+
+function setupDefense() {
+    bot.on('entityHurt', (entity) => {
+        if (entity === bot.entity) {
+            bot.chat("I've been hurt! Engaging defense mode.");
+            checkSurroundings(); // Call the surroundings check function for defense response
+        }
+    });
+}
+
+function logAction(action) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${action}`);
+    bot.chat(action); // Optional: bot announces actions in-game
 }
 
 
