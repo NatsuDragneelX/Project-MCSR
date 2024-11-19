@@ -94,6 +94,37 @@ async function MoveTo(position) {
     }
 }
 
+// Consolidated movement function
+async function moveSafelyTo(position, retries = 3) {
+    const movements = new Movements(bot, bot.pathfinder);
+    movements.allowSprinting = true;
+    movements.canDig = true; // Allow digging for obstacles
+    bot.pathfinder.setMovements(movements);
+
+    let attempts = 0;
+    while (attempts < retries) {
+        try {
+            const isSafe = (pos) => {
+                const below = bot.blockAt(pos.offset(0, -1, 0));
+                return below && below.boundingBox === "block" && !["lava", "fire", "cactus"].includes(below.name);
+            };
+
+            if (isSafe(position)) {
+                await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
+                return; // Successfully reached the position
+            } else {
+                bot.chat("Unsafe position detected! Adjusting...");
+                position = position.offset(1, 0, 1); // Adjust position
+            }
+        } catch (error) {
+            bot.chat(`Movement attempt ${attempts + 1} failed: ${error.message}`);
+            attempts++;
+        }
+    }
+    bot.chat("Failed to reach the destination after multiple retries.");
+}
+
+
 // Ensure bot stays alive by jumping periodically
 function keepAlive() {
     setInterval(() => {
@@ -144,7 +175,7 @@ async function gatherWood() {
         const tree = bot.findBlock({ matching: (block) => woodTypes.includes(block.name), maxDistance: 32 });
         if (tree) {
             bot.chat(`Found a tree at ${tree.position}. Moving to it...`);
-            await MoveTo(tree.position); // Use safeMoveTo instead of moveTo
+            await moveSafelyTo(tree.position); // Use safeMoveTo instead of 
 
             if (checkForHazards(tree.position)) {
                 bot.chat("Hazard detected near the tree. Skipping...");
@@ -178,7 +209,7 @@ async function gatherStone() {
         const stone = bot.findBlock({ matching: (block) => block.name === "stone", maxDistance: 16 });
         if (stone) {
             bot.chat(`Found stone at ${stone.position}. Moving to it...`);
-            await moveTo(stone.position);
+            await moveSafelyTo(stone.position);
 
             if (checkForHazards(stone.position)) {
                 bot.chat("Hazard detected near the stone. Skipping...");
@@ -212,7 +243,7 @@ async function gatherIron() {
         const ironOre = bot.findBlock({ matching: (block) => block.name === "iron_ore", maxDistance: 16 });
         if (ironOre) {
             bot.chat(`Found iron ore at ${ironOre.position}. Moving to it...`);
-            await moveTo(ironOre.position);
+            await moveSafelyTo(ironOre.position);
 
             if (checkForHazards(ironOre.position)) {
                 bot.chat("Hazard detected near the iron ore. Skipping...");
@@ -259,8 +290,17 @@ function checkForHazards(position) {
 
 // Check if inventory has space
 function checkInventorySpace() {
-    return bot.inventory.slots.some((slot) => slot === null);
+    const essentialItems = ["wood", "stone", "iron", "planks", "stick", "iron_ingot"];
+    const nonEssential = bot.inventory.items().filter(item => !essentialItems.includes(item.name));
+    
+    if (nonEssential.length > 0) {
+        nonEssential.forEach(item => bot.tossStack(item));
+        bot.chat("Cleared non-essential items to make space.");
+        return true;
+    }
+    return bot.inventory.slots.some(slot => slot === null); // Check for empty slots
 }
+
 
 // Handle timeouts for gathering
 let startTime = Date.now();
