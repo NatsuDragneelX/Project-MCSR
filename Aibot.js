@@ -1,5 +1,6 @@
 const mineflayer = require("mineflayer");
 const { goals } = require("mineflayer-pathfinder");
+const mcData = require('minecraft-data');
 const { pathfinder, Movements } = require("mineflayer-pathfinder");
 const { Vec3 } = require("vec3");
 
@@ -11,6 +12,7 @@ const gatherCooldown = 5000;
 let woodCollected = 0;
 let stoneCollected = 0;
 let ironCollected = 0;
+let retryPath = false;
 
 // Create and configure bot instance
 function createBotInstance() {
@@ -94,14 +96,20 @@ async function MoveTo(position) {
     }
 }
 
+function pause(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Consolidated movement function
 async function moveSafelyTo(position, retries = 3) {
+    console.log('retryPath status:', typeof retryPath !== 'undefined' ? retryPath : 'undefined');
     const movements = new Movements(bot, bot.pathfinder);
     movements.allowSprinting = true;
     movements.canDig = true; // Allow digging for obstacles
     bot.pathfinder.setMovements(movements);
 
     let attempts = 0;
+
     while (attempts < retries) {
         try {
             const isSafe = (pos) => {
@@ -111,19 +119,22 @@ async function moveSafelyTo(position, retries = 3) {
 
             if (isSafe(position)) {
                 await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
-                return; // Successfully reached the position
+                bot.chat("Successfully reached the destination.");
+                return; // Exit the loop once the destination is reached
             } else {
                 bot.chat("Unsafe position detected! Adjusting...");
                 position = position.offset(1, 0, 1); // Adjust position
             }
         } catch (error) {
             bot.chat(`Movement attempt ${attempts + 1} failed: ${error.message}`);
-            attempts++;
         }
+
+        attempts++;
+        await pause(1000); // Pause for 1 second before retrying
     }
+
     bot.chat("Failed to reach the destination after multiple retries.");
 }
-
 
 // Ensure bot stays alive by jumping periodically
 function keepAlive() {
@@ -151,26 +162,28 @@ async function teleportToPlayer() {
 
 // Start the main tasks
 async function startTasks() {
-    await gatherResources();
+    //await gatherResources();
+    await gatherWood();
     await craftEssentials();
-    await createNetherPortal();
+    await gatherStone();
+    //await createNetherPortal();
 }
 
 // Gather essential resources
 async function gatherResources() {
-    await gatherWood();
-    await gatherStone();
-    await gatherIron();
+    //await gatherWood();
+    //await gatherStone();
+    //await gatherIron();
 }
 
 // Gather wood
 async function gatherWood() {
     const woodTypes = ["oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log"];
-    while (woodCollected < 10) {
-        if (!checkInventorySpace()) {
-            bot.chat("Inventory full. Please clear space.");
-            break;
-        }
+    while (woodCollected < 5) {
+        //if (!checkInventorySpace()) {
+            //bot.chat("Inventory full. Please clear space.");
+            //break;
+        //}
 
         const tree = bot.findBlock({ matching: (block) => woodTypes.includes(block.name), maxDistance: 64 });
         if (tree) {
@@ -201,10 +214,10 @@ async function gatherWood() {
 // Gather stone
 async function gatherStone() {
     while (stoneCollected < 10) {
-        if (!checkInventorySpace()) {
-            bot.chat("Inventory full. Please clear space.");
-            break;
-        }
+        //if (!checkInventorySpace()) {
+            //bot.chat("Inventory full. Please clear space.");
+            //break;
+        //}
 
         const stone = bot.findBlock({ matching: (block) => block.name === "stone", maxDistance: 16 });
         if (stone) {
@@ -235,10 +248,10 @@ async function gatherStone() {
 // Gather iron
 async function gatherIron() {
     while (ironCollected < 10) {
-        if (!checkInventorySpace()) {
-            bot.chat("Inventory full. Please clear space.");
-            break;
-        }
+        //if (!checkInventorySpace()) {
+            //bot.chat("Inventory full. Please clear space.");
+            //break;
+        //}
 
         const ironOre = bot.findBlock({ matching: (block) => block.name === "iron_ore", maxDistance: 16 });
         if (ironOre) {
@@ -343,38 +356,149 @@ async function MoveTo(position) {
 
 // Craft essential tools and items
 async function craftEssentials() {
-    if (woodCollected >= 4) await craftWoodenTools();
+    if (woodCollected >= 3) {
+        await craftPlanks();
+        await craftWoodenTools(); 
+    } 
     if (stoneCollected >= 3) await craftStoneTools();
     if (ironCollected >= 3) await smeltIronAndCraftIronTools();
 }
 
+async function craftPlanks() {
+    bot.mcData = mcData(bot.version);
+    // Oak
+    try {
+        const plankItem = bot.mcData.itemsByName["oak_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+    
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for oak planks.");
+            //return;
+        }
+    
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted oak planks.");
+    } catch (error) {
+        console.error("Error crafting oak planks:", error.message);
+        bot.chat("Failed to craft oak planks.");
+    }
+    // Birch
+    try {
+        const plankItem = bot.mcData.itemsByName["birch_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+    
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for birch planks.");
+            //return;
+        }
+    
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted birch planks.");
+    } catch (error) {
+        console.error("Error crafting birch planks:", error.message);
+        bot.chat("Failed to craft birch planks.");
+    }
+    // Spruce
+    try {
+        const plankItem = bot.mcData.itemsByName["spruce_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+    
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for spruce planks.");
+            //return;
+        }
+    
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted spruce planks.");
+    } catch (error) {
+        console.error("Error crafting spruce planks:", error.message);
+        bot.chat("Failed to craft spruce planks.");
+    }
+    // Dark Oak
+    try {
+        const plankItem = bot.mcData.itemsByName["dark_oak_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for dark oak planks.");
+            //return;
+        }
+
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted dark oak planks.");
+    } catch (error) {
+        console.error("Error crafting dark oak planks:", error.message);
+        bot.chat("Failed to craft dark oak planks.");
+    }
+    // Acacia
+    try {
+        const plankItem = bot.mcData.itemsByName["acacia_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for acacia planks.");
+            //return;
+        }
+
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted acacia planks.");
+    } catch (error) {
+        console.error("Error crafting acacia planks:", error.message);
+        bot.chat("Failed to craft acacia planks.");
+    }
+    // Cherry
+    try {
+        const plankItem = bot.mcData.itemsByName["cherry_planks"] || bot.mcData.itemsByName["planks"];
+        if (!plankItem) {
+            bot.chat("Plank item not found in mcData.");
+            //return;
+        }
+
+        const plankRecipe = bot.recipesFor(plankItem.id)?.[0];
+        if (!plankRecipe) {
+            bot.chat("No recipe found for cherry planks.");
+            //return;
+        }
+
+        await bot.craft(plankRecipe, 4, null);
+        bot.chat("Crafted cherry planks.");
+    } catch (error) {
+        console.error("Error crafting cherry planks:", error.message);
+        bot.chat("Failed to craft cherry planks.");
+    }
+
+}
+
+//bot.once('spawn', () => {
+    //console.log("Bot spawned and mcData is now available!");
+    //craftPlanks();
+//});
+
 // Craft wooden tools
 async function craftWoodenTools() {
+    bot.mcData = mcData(bot.version);
     bot.chat("Crafting wooden tools...");
-
-    // Check and craft planks if needed
-    const plankRecipe = bot.recipesFor(bot.mcData.itemsByName["planks"].id)[0];
-    if (plankRecipe && countInInventory("planks") < 8) {
-        await bot.craft(plankRecipe, 4, null);
-        bot.chat("Crafted planks.");
-    } else {
-        bot.chat("Planks already available.");
-    }
-
-    // Check and craft crafting table
-    if (!checkInventoryForItem("crafting_table")) {
-        const craftingTableRecipe = bot.recipesFor(bot.mcData.itemsByName["crafting_table"].id)[0];
-        if (craftingTableRecipe) {
-            await bot.craft(craftingTableRecipe, 1, null);
-            bot.chat("Crafting table crafted!");
-        } else {
-            bot.chat("Unable to craft crafting table. Missing materials.");
-            return;
-        }
-    } else {
-        bot.chat("Crafting table already available.");
-    }
-
+    
     // Check and craft sticks if needed
     const stickRecipe = bot.recipesFor(bot.mcData.itemsByName["stick"].id)[0];
     if (stickRecipe && countInInventory("stick") < 4) {
@@ -383,82 +507,198 @@ async function craftWoodenTools() {
     } else {
         bot.chat("Sticks already available.");
     }
-
+    await craftCraftingTable();
+    await placeCraftingTable();
     // Check and craft a wooden pickaxe
-    if (!checkToolInInventory("wooden_pickaxe")) {
-        const pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["wooden_pickaxe"].id)[0];
-        if (pickaxeRecipe) {
-            await bot.craft(pickaxeRecipe, 1, null);
-            bot.chat("Wooden pickaxe crafted!");
-        } else {
-            bot.chat("Unable to craft wooden pickaxe. Missing materials.");
-        }
+    if (!checkToolInInventory("wooden_pickaxe")) {        
+        // Attempt to find a crafting table
+        craftItem("wooden_pickaxe");
+        
+    }
+
+}
+
+// Function to craft a crafting table if needed
+async function craftCraftingTable() {
+    const craftingTableRecipe = bot.recipesFor(bot.mcData.itemsByName["crafting_table"].id)[0];
+    if (craftingTableRecipe && countInInventory("crafting_table") < 1) {
+        await bot.craft(craftingTableRecipe, 1, null);
+        bot.chat("Crafted crafting table.");
     } else {
-        bot.chat("Wooden pickaxe already available.");
+        bot.chat("Not going to craft the crafting table.");
+    }
+}
+
+// Function to place the crafting table
+async function placeCraftingTable() {
+    await placeBlock("crafting_table");
+}
+
+
+
+
+// Function to open the crafting table
+async function openCraftingTable() {
+    // Find a crafting table within a certain distance
+    const crafting = bot.findBlock({ matching: (block) => block.name === 'crafting_table', maxDistance: 16 });
+    
+    if (!crafting) {
+        console.log("Crafting table not found.");
+        bot.chat("No crafting table nearby.");
+        return null;
+    }
+
+    console.log("Crafting table position:", crafting.position);
+
+    // Ensure the bot is within a safe range of the crafting table
+    const distance = bot.entity.position.distanceTo(crafting.position);
+    if (distance > 2.5) {
+        // Offset the position slightly to avoid overlapping with the crafting table
+        const safePosition = crafting.position.offset(1, 0, 0);  // Move 1 block to the right of the crafting table
+        console.log("Bot is too far from the crafting table. Moving to a safe position:", safePosition);
+        await moveSafelyTo(safePosition);
+    }
+
+    // Get the block at the crafting table's position
+    const craftingBlock = bot.blockAt(crafting.position);
+    console.log("Crafting block:", craftingBlock);
+
+    if (!craftingBlock || craftingBlock.type !== bot.mcData.blocksByName.crafting_table.id) {
+        console.log("Not a valid crafting table block.");
+        bot.chat("Invalid crafting table.");
+        return null;
+    }
+
+    // Make the bot look directly at the crafting table
+    await bot.lookAt(crafting.position, false); // Look at the crafting table (false for smooth turn)
+
+    // Open the crafting table using bot.openBlock() (more reliable for GUI blocks)
+    try {
+        const craftingWindow = await bot.openBlock(craftingBlock);  // Open the crafting table
+        if (craftingWindow) {
+            console.log("Crafting table opened successfully!");
+            return craftingWindow;
+        } else {
+            console.log("Failed to open crafting table.");
+            bot.chat("Error opening crafting table.");
+            return null;
+        }
+    } catch (error) {
+        console.error("Failed to activate the crafting table:", error.message);
+        bot.chat("Error opening crafting table.");
+        return null;
     }
 }
 
 
-// Craft stone tools with upgrades to gold and diamond if available
-async function craftStoneTools() {
-    bot.chat("Crafting stone tools or better...");
-
-    // Check and craft a pickaxe (prioritize gold or diamond if materials are available)
-    if (!checkToolInInventory("stone_pickaxe") && !checkToolInInventory("iron_pickaxe") &&
-        !checkToolInInventory("golden_pickaxe") && !checkToolInInventory("diamond_pickaxe")) {
-        
-        let pickaxeRecipe = null;
-        
-        if (checkInventoryForItem("diamond", 3)) {
-            pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["diamond_pickaxe"].id)[0];
-        } else if (checkInventoryForItem("gold_ingot", 3)) {
-            pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["golden_pickaxe"].id)[0];
-        } else if (checkInventoryForItem("iron_ingot", 3)) {
-            pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["iron_pickaxe"].id)[0];
-        } else if (checkInventoryForItem("cobblestone", 3)) {
-            pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["stone_pickaxe"].id)[0];
-        }
-        
-        if (pickaxeRecipe) {
-            await bot.craft(pickaxeRecipe, 1, null);
-            bot.chat("Pickaxe crafted!");
-        } else {
-            bot.chat("Unable to craft pickaxe. Missing materials.");
-        }
-    } else {
-        bot.chat("Pickaxe already available.");
+// Function to craft a specified item
+async function craftItem(itemName) {
+    bot.chat("Attempting to craft", itemName);
+    // Open the crafting table
+    const craftingBlock = await openCraftingTable();
+    if (!craftingBlock) {
+        return; // Exit if we can't open the crafting table
     }
 
-    // Check and craft a sword (prioritize gold or diamond if materials are available)
-    if (!checkToolInInventory("stone_sword") && !checkToolInInventory("iron_sword") &&
-        !checkToolInInventory("golden_sword") && !checkToolInInventory("diamond_sword")) {
-
-        let swordRecipe = null;
-
-        if (checkInventoryForItem("diamond", 2)) {
-            swordRecipe = bot.recipesFor(bot.mcData.itemsByName["diamond_sword"].id)[0];
-        } else if (checkInventoryForItem("gold_ingot", 2)) {
-            swordRecipe = bot.recipesFor(bot.mcData.itemsByName["golden_sword"].id)[0];
-        } else if (checkInventoryForItem("iron_ingot", 2)) {
-            swordRecipe = bot.recipesFor(bot.mcData.itemsByName["iron_sword"].id)[0];
-        } else if (checkInventoryForItem("cobblestone", 2)) {
-            swordRecipe = bot.recipesFor(bot.mcData.itemsByName["stone_sword"].id)[0];
+    // Open the crafting window
+    try {
+        const craftingWindow = await bot.openBlock(craftingBlock);
+        if (!craftingWindow) {
+            console.log("Failed to open crafting table.");
+            bot.chat("Error opening crafting table.");
+            return;
         }
 
+        // Find the recipe for the item
+        const itemRecipe = bot.recipesFor(bot.mcData.itemsByName[itemName].id, null, 1, craftingWindow)[0];
+        if (!itemRecipe) {
+            console.log("No recipe found for", itemName);
+            bot.chat("Cannot craft " + itemName);
+            return;
+        }
+
+        // Craft the item
+        await bot.craft(itemRecipe, 1, craftingWindow);
+        console.log(`${itemName} crafted!`);
+        bot.chat(`${itemName} crafted!`);
+
+        // After crafting, break the crafting table
+        await breakCraftingTable(craftingBlock);
+
+    } catch (error) {
+        console.error("Error crafting item:", error.message);
+        bot.chat("Error crafting item.");
+    }
+}
+
+// Function to break the crafting table after crafting
+async function breakCraftingTable(craftingBlock) {
+    // Ensure the block is within range
+    const blockToBreak = bot.blockAt(craftingBlock.position);
+    if (!blockToBreak || blockToBreak.type !== bot.mcData.blocksByName.crafting_table.id) {
+        console.log("Invalid block or block not found.");
+        bot.chat("Error: Could not find the crafting table to break.");
+        return;
+    }
+
+    // Equip a tool (if needed) and break the block
+    const tool = bot.inventory.findInventoryItem('wooden_axe', 'stone_axe', 'iron_axe'); // Adjust as needed
+    if (tool) {
+        await bot.equip(tool, 'hand');
+    }
+
+    try {
+        await bot.dig(blockToBreak);
+        console.log("Crafting table broken.");
+        bot.chat("Crafting table broken.");
+    } catch (error) {
+        console.error("Failed to break the crafting table:", error.message);
+        bot.chat("Error breaking crafting table.");
+    }
+}
+
+
+// Example usage to craft a wooden pickaxe
+//craftItem("wooden_pickaxe");
+
+// You can call this function for other items, like a stone pickaxe, by simply calling craftItem with the appropriate item name:
+// craftItem("stone_pickaxe");
+
+
+// Craft stone tools
+async function craftStoneTools() {
+    bot.chat("Crafting stone tools...");
+
+    // Check and craft a stone pickaxe
+    if (!checkToolInInventory("stone_pickaxe")) {
+        const pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["stone_pickaxe"].id)[0];
+        if (pickaxeRecipe) {
+            await bot.craft(pickaxeRecipe, 1, null);
+            bot.chat("Stone pickaxe crafted!");
+        } else {
+            bot.chat("Unable to craft stone pickaxe. Missing materials.");
+        }
+    } else {
+        bot.chat("Stone pickaxe already available.");
+    }
+
+    // Check and craft a stone sword
+    if (!checkToolInInventory("stone_sword")) {
+        const swordRecipe = bot.recipesFor(bot.mcData.itemsByName["stone_sword"].id)[0];
         if (swordRecipe) {
             await bot.craft(swordRecipe, 1, null);
-            bot.chat("Sword crafted!");
+            bot.chat("Stone sword crafted!");
         } else {
-            bot.chat("Unable to craft sword. Missing materials.");
+            bot.chat("Unable to craft stone sword. Missing materials.");
         }
     } else {
-        bot.chat("Sword already available.");
+        bot.chat("Stone sword already available.");
     }
 }
 
-// Smelt iron and craft tools with upgrades to gold and diamond
+// Smelt iron and craft iron tools
 async function smeltIronAndCraftIronTools() {
-    bot.chat("Smelting iron and crafting tools...");
+    bot.chat("Smelting iron and crafting iron tools...");
 
     // Check if a furnace is needed and craft one
     if (!checkInventoryForItem("furnace")) {
@@ -483,83 +723,149 @@ async function smeltIronAndCraftIronTools() {
         return;
     }
 
-    // Craft tools with available materials (iron, gold, or diamond)
-    await craftStoneTools(); // Reuse the logic in craftStoneTools for gold and diamond
-}
-
-// Check for tool availability in inventory
-function checkToolInInventory(toolName) {
-    const tool = bot.inventory.items().find(item => item.name.includes(toolName));
-    return !!tool;
-}
-
-// Check inventory for specific items and count
-function checkInventoryForItem(itemName, count = 1) {
-    const items = bot.inventory.items().filter(item => item.name.includes(itemName));
-    const totalCount = items.reduce((sum, item) => sum + item.count, 0);
-    return totalCount >= count;
-}
-
-// Place a block from inventory
-async function placeBlock(blockName) {
-    const block = bot.inventory.findInventoryItem(blockName);
-    if (block) {
-        const position = bot.entity.position.offset(1, 0, 0); // Adjust position for placing
-        await bot.equip(block, "hand");
-        await bot.placeBlock(bot.blockAt(position), new Vec3(0, 1, 0));
+    // Craft iron tools
+    if (!checkToolInInventory("iron_pickaxe")) {
+        const pickaxeRecipe = bot.recipesFor(bot.mcData.itemsByName["iron_pickaxe"].id)[0];
+        if (pickaxeRecipe) {
+            await bot.craft(pickaxeRecipe, 1, null);
+            bot.chat("Iron pickaxe crafted!");
+        } else {
+            bot.chat("Unable to craft iron pickaxe. Missing materials.");
+        }
     } else {
-        bot.chat(`Cannot place ${blockName}. Not found in inventory.`);
-    }
-}
-
-// Smelt items in the furnace
-async function smeltItem(input, fuel, output) {
-    const furnaceBlock = bot.blockAt(bot.entity.position.offset(0, -1, 0));
-    if (furnaceBlock.name !== "furnace") {
-        bot.chat("No furnace to smelt items.");
-        return;
+        bot.chat("Iron pickaxe already available.");
     }
 
-    const inputItem = bot.inventory.findInventoryItem(input);
-    const fuelItem = bot.inventory.findInventoryItem(fuel);
-
-    if (inputItem && fuelItem) {
-        await bot.equip(inputItem, "hand");
-        await bot.activateBlock(furnaceBlock);
-        await bot.deposit(fuelItem, null, 1); // Deposit fuel into furnace
-        bot.chat(`Smelting ${input} into ${output}...`);
-        await bot.waitForTicks(200); // Simulate smelting time
+    if (!checkToolInInventory("iron_sword")) {
+        const swordRecipe = bot.recipesFor(bot.mcData.itemsByName["iron_sword"].id)[0];
+        if (swordRecipe) {
+            await bot.craft(swordRecipe, 1, null);
+            bot.chat("Iron sword crafted!");
+        } else {
+            bot.chat("Unable to craft iron sword. Missing materials.");
+        }
     } else {
-        bot.chat(`Missing input or fuel to smelt ${input}.`);
+        bot.chat("Iron sword already available.");
     }
 }
-
 
 // Helper Functions
+
+// Count items in inventory
+function countInInventory(itemName) {
+    return bot.inventory.items().filter((item) => item.name === itemName).reduce((count, item) => count + item.count, 0);
+}
 
 // Check if a tool exists in the inventory
 function checkToolInInventory(toolName) {
     return bot.inventory.items().some((item) => item.name === toolName);
 }
 
+// Check if a specific item exists in inventory
+function checkInventoryForItem(itemName) {
+    return bot.inventory.items().some((item) => item.name === itemName);
+}
 
-// Place a block from inventory
+// Smelt item using a furnace
+async function smeltItem(input, fuel, output) {
+    const furnace = bot.findBlock({ matching: bot.mcData.blocksByName["furnace"].id, maxDistance: 16 });
+    if (!furnace) {
+        bot.chat("No furnace nearby to smelt items.");
+        return;
+    }
+
+    const inputItem = bot.inventory.findInventoryItem(input);
+    const fuelItem = bot.inventory.findInventoryItem(fuel);
+    if (!inputItem || !fuelItem) {
+        bot.chat("Missing resources for smelting.");
+        return;
+    }
+
+    try {
+        await bot.smelt(inputItem.type, fuelItem.type, bot.mcData.itemsByName[output].id);
+        bot.chat(`${output} smelted successfully!`);
+    } catch (err) {
+        bot.chat(`Error during smelting: ${err.message}`);
+    }
+}
+
+// Function to place a block from inventory with retry logic
 async function placeBlock(blockName) {
     const block = bot.inventory.findInventoryItem(blockName);
+    
     if (block) {
-        const target = bot.blockAt(bot.entity.position.offset(0, -1, 0));
-        if (target) {
-            try {
-                await bot.placeBlock(target, new Vec3(0, 1, 0));
-                bot.chat(`${blockName} placed.`);
-            } catch (err) {
-                bot.chat(`Error placing ${blockName}: ${err.message}`);
+        // Equip the block to hand
+        await bot.equip(block, "hand");
+
+        const positionsToCheck = [
+            new Vec3(1, 0, 0),  // Right
+            new Vec3(-1, 0, 0), // Left
+            new Vec3(0, 0, 1),  // Forward
+            new Vec3(0, 0, -1), // Backward
+            new Vec3(0, 1, 0),  // Above
+            new Vec3(0, -1, 0)  // Below
+        ];
+
+        let attempts = 0;
+        const maxAttempts = 10;  // Maximum number of attempts to place the block
+
+        // Retry placing the block
+        while (attempts < maxAttempts) {
+            for (const offset of positionsToCheck) {
+                const targetPosition = bot.entity.position.plus(offset);  // Find the position to check
+                const targetBlock = bot.blockAt(targetPosition);  // Get the block at that position
+
+                // Ensure the target block is air (empty space)
+                if (targetBlock && targetBlock.name === 'air') {
+                    // Check for solid neighbors around the target block
+                    const neighborOffsets = [
+                        new Vec3(1, 0, 0),  // Right
+                        new Vec3(-1, 0, 0), // Left
+                        new Vec3(0, 0, 1),  // Forward
+                        new Vec3(0, 0, -1), // Backward
+                        new Vec3(0, -1, 0)  // Below (exclude above to avoid floating blocks)
+                    ];
+
+                    let hasSolidNeighbor = false;
+                    for (const neighborOffset of neighborOffsets) {
+                        const neighborPosition = targetPosition.plus(neighborOffset);
+                        const neighborBlock = bot.blockAt(neighborPosition);
+
+                        if (neighborBlock && neighborBlock.boundingBox === 'block') {
+                            hasSolidNeighbor = true;
+                            break;  // Exit loop as soon as we find a solid neighbor
+                        }
+                    }
+
+                    // If a solid neighbor exists, place the block
+                    if (hasSolidNeighbor) {
+                        try {
+                            await bot.placeBlock(targetBlock, offset);  // Place block at the valid position
+                            bot.chat(`${blockName} placed at ${targetPosition}`);
+                            return;  // Exit after placing the block
+                        } catch (err) {
+                            console.error(`Error placing ${blockName}: ${err.message}`);
+                            bot.chat(`Error placing ${blockName}: ${err.message}`);
+                        }
+                    }
+                }
+            }
+
+            attempts++;  // Increment the number of attempts
+            if (attempts < maxAttempts) {
+                bot.chat(`Attempt ${attempts} failed. Retrying...`);
             }
         }
+
+        // If no suitable space is found after maxAttempts, notify the user
+        bot.chat(`Failed to place ${blockName} after ${maxAttempts} attempts.`);
     } else {
         bot.chat(`${blockName} not found in inventory.`);
     }
 }
+
+
+
 
 // Create a Nether portal
 async function createNetherPortal() {
@@ -963,7 +1269,7 @@ async function equipBestWeapon(preferred = "sword") {
 
 // Check if timeout exceeded
 let taskStartTime = Date.now();
-function timeoutExceeded(timeout = 60000) {
+function timeoutExceeded(timeout = 600000) {
     return Date.now() - taskStartTime > timeout;
 }
 
@@ -1084,7 +1390,7 @@ async function moveToSafely(position) {
     if (isSafe(position)) {
         await bot.pathfinder.goto(new goals.GoalBlock(position.x, position.y, position.z));
     } else {
-        bot.chat("Unsafe position detected! Adjusting path...");
+        //bot.chat("Unsafe position detected! Adjusting path...");
         await bot.pathfinder.goto(new goals.GoalBlock(position.x + 1, position.y, position.z + 1));
     }
 }
